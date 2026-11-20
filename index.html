@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>학부모 상담 신청</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  // ▼▼▼ URL·키 두 줄을 내 값으로 바꾸세요 (작은따옴표 ' ' 는 그대로 두기) ▼▼▼
+  const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_YOUR-KEY';
+  const TEACHER_NAME = '조혜승';
+  // ▲▲▲ 여기까지 ▲▲▲
+</script>
+<style>
+  :root {
+    --bg: #f6f5f1; --card: #fff; --ink: #24262b; --muted: #6b7280; --line: #e6e4dd;
+    --brand: #1f7a5a; --brand-soft: #e5f3ec; --ok: #1f7a5a; --ok-soft: #e5f3ec;
+    --err: #b3392f; --err-soft: #fbeceb; --taken: #f0eeea; --today: #fff6d8;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+         background: var(--bg); color: var(--ink); line-height: 1.5; }
+  header { background: var(--brand); color: #fff; padding: 22px 16px; text-align: center; }
+  header h1 { margin: 0; font-size: 1.45rem; }
+  header p { margin: 6px 0 0; opacity: .9; }
+  main { max-width: 880px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
+  .card { background: var(--card); border-radius: 14px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+  .card h2 { margin: 0 0 10px; font-size: 1.1rem; }
+  .guide { color: var(--muted); margin: 0; font-size: .95rem; }
+  .notice { position: sticky; top: 8px; z-index: 10; padding: 12px 14px; border-radius: 10px; font-weight: 600; }
+  .notice.ok { background: var(--ok-soft); color: var(--ok); }
+  .notice.err { background: var(--err-soft); color: var(--err); }
+  .hidden { display: none !important; }
+  .week-nav { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  .week-nav span { font-weight: 700; margin-right: auto; }
+  .btn { font: inherit; border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+  .btn:hover { background: var(--bg); }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: .85rem; color: var(--muted); margin-bottom: 10px; }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; min-width: 560px; table-layout: fixed; }
+  th, td { border: 1px solid var(--line); padding: 6px; text-align: center; font-size: .9rem; }
+  th { background: var(--bg); }
+  th.time { width: 108px; }
+  th.today { background: var(--today); }
+  .cell { width: 100%; border-radius: 8px; padding: 9px 0; font: inherit; font-size: .85rem; border: 0; }
+  .cell.open { background: var(--brand-soft); color: var(--brand); font-weight: 700; cursor: pointer; border: 1px solid transparent; }
+  .cell.open:hover { border-color: var(--brand); }
+  .cell.open.selected { background: var(--brand); color: #fff; }
+  .cell.taken { background: var(--taken); color: var(--muted); }
+  .cell.blocked { background: transparent; color: #b0b0b0; }
+  .chosen { background: var(--brand-soft); color: var(--brand); border-radius: 10px; padding: 12px; font-weight: 700;
+            display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  form { display: grid; gap: 12px; margin-top: 14px; }
+  label { display: grid; gap: 4px; font-weight: 600; font-size: .95rem; }
+  input[type=text], input[type=tel] { font: inherit; padding: 11px; border: 1px solid var(--line); border-radius: 8px; }
+  .consent { background: var(--bg); border-radius: 10px; padding: 12px; font-size: .88rem; color: var(--muted); }
+  .consent table { min-width: 0; margin: 6px 0 10px; }
+  .consent th, .consent td { text-align: left; font-size: .85rem; }
+  .consent th { width: 90px; }
+  .check { display: flex; gap: 8px; align-items: center; font-weight: 700; color: var(--ink); }
+  .check input { width: 18px; height: 18px; }
+  .submit { background: var(--brand); color: #fff; border: 0; border-radius: 10px; padding: 13px;
+            font: inherit; font-size: 1.05rem; font-weight: 700; cursor: pointer; }
+  .submit:disabled { opacity: .6; }
+  .done { text-align: center; }
+  .done .big { font-size: 1.15rem; font-weight: 700; color: var(--brand); margin: 6px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>학부모 상담 신청</h1>
+  <p id="classLabel"></p>
+</header>
+
+<main>
+  <div id="notice" class="notice hidden"></div>
+
+  <section class="card">
+    <h2>1. 상담 시간 고르기</h2>
+    <p class="guide">상담은 20분이며 월~금에만 가능해요. 초록색 칸을 눌러 주세요.</p>
+  </section>
+
+  <section class="card">
+    <div class="week-nav">
+      <span id="weekLabel"></span>
+      <button class="btn" id="prevWeek">◀ 이전 주</button>
+      <button class="btn" id="thisWeek">이번 주</button>
+      <button class="btn" id="nextWeek">다음 주 ▶</button>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--brand-soft)"></i>신청 가능</span>
+      <span><i style="background:var(--taken)"></i>예약 완료</span>
+      <span><i style="background:#fff;border:1px solid var(--line)"></i>신청 불가</span>
+    </div>
+    <div class="table-wrap"><table id="schedule"></table></div>
+  </section>
+
+  <section class="card hidden" id="formCard">
+    <h2>2. 신청서 작성</h2>
+    <div class="chosen">
+      <span id="chosenText"></span>
+      <button class="btn" id="rechoose" type="button">다른 시간 고르기</button>
+    </div>
+    <form id="form">
+      <label>학생 이름 <input type="text" id="fStudent" maxlength="20" required placeholder="예: 김바다"></label>
+      <label>학부모 이름 <input type="text" id="fName" maxlength="20" required placeholder="예: 김하늘" autocomplete="name"></label>
+      <label>휴대폰 번호 <input type="tel" id="fPhone" required placeholder="010-1234-5678" inputmode="numeric" autocomplete="tel"></label>
+
+      <div class="consent">
+        <b>개인정보 수집·이용 안내</b>
+        <table>
+          <tr><th>수집 항목</th><td>학생 이름, 학부모 이름, 휴대폰 번호</td></tr>
+          <tr><th>이용 목적</th><td>상담 일정 확인 및 연락</td></tr>
+          <tr><th>보유 기간</th><td>상담 종료 후 즉시 파기</td></tr>
+        </table>
+        동의하지 않으실 수 있으며, 이 경우 온라인 신청 대신 선생님께 직접 연락해 주세요.
+        <label class="check" style="margin-top:8px"><input type="checkbox" id="fAgree" required> 개인정보 수집·이용에 동의합니다</label>
+      </div>
+
+      <button class="submit" id="submitBtn" type="submit">상담 신청하기</button>
+    </form>
+  </section>
+
+  <section class="card done hidden" id="doneCard">
+    <h2>신청이 완료되었어요</h2>
+    <p class="big" id="doneText"></p>
+    <p class="guide">시간 변경이나 취소는 선생님께 연락해 주세요.</p>
+    <button class="btn" id="again" style="margin-top:10px">처음 화면으로</button>
+  </section>
+</main>
+
+<script>
+  // ---------- 상담 시간표 ----------
+  const SLOTS = [
+    { n: 1, start: '13:40', end: '14:00' },
+    { n: 2, start: '14:10', end: '14:30' },
+    { n: 3, start: '14:40', end: '15:00' },
+    { n: 4, start: '15:10', end: '15:30' },
+    { n: 5, start: '15:40', end: '16:00' },
+    { n: 6, start: '16:10', end: '16:30' },
+  ];
+  const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
+  const $ = (id) => document.getElementById(id);
+  let db = null;
+  let weekStart = mondayOf(new Date());
+  let chosen = null; // { date, slot }
+
+  // ---------- 날짜 도우미 ----------
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function parseYmd(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
+  function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+  function mondayOf(d) {
+    const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
+    return x;
+  }
+  function niceDate(s) { const d = parseYmd(s); return `${d.getMonth() + 1}월 ${d.getDate()}일 (${DAYS[d.getDay()]})`; }
+  function slotText(n) { const s = SLOTS[n - 1]; return `${s.start}~${s.end}`; }
+  function nowHM() { const d = new Date(); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+  function isPast(dateStr, slot) {
+    const today = ymd(new Date());
+    if (dateStr < today) return true;
+    if (dateStr > today) return false;
+    return nowHM() >= SLOTS[slot - 1].start;
+  }
+
+  // ---------- 알림 ----------
+  let timer;
+  function notify(msg, type = 'ok', stay = false) {
+    const n = $('notice');
+    n.textContent = msg;
+    n.className = 'notice ' + type;
+    clearTimeout(timer);
+    if (!stay) timer = setTimeout(() => n.classList.add('hidden'), 5000);
+  }
+  function friendlyError(error) {
+    switch (error.code) {
+      case '23505': return '방금 다른 분이 먼저 신청한 시간이에요. 다른 시간을 골라 주세요.';
+      case '42501': return '신청할 수 없는 시간이에요. (선생님이 막아 둔 시간이거나 이미 지난 시간)';
+      case '23514': return '입력값을 확인해 주세요. (학생·학부모 이름 2~20글자, 휴대폰 번호 형식, 동의 여부)';
+      default: return '문제가 생겼어요: ' + error.message;
+    }
+  }
+
+  // ---------- 전화번호 자동 하이픈 ----------
+  function formatPhone(v) {
+    const d = v.replace(/\D/g, '').slice(0, 11);
+    if (d.length < 4) return d;
+    if (d.length < 8) return d.slice(0, 3) + '-' + d.slice(3);
+    if (d.length === 10) return d.slice(0, 3) + '-' + d.slice(3, 6) + '-' + d.slice(6);
+    return d.slice(0, 3) + '-' + d.slice(3, 7) + '-' + d.slice(7);
+  }
+  $('fPhone').addEventListener('input', (e) => { e.target.value = formatPhone(e.target.value); });
+
+  // ---------- 시작 ----------
+  function init() {
+    $('classLabel').textContent = TEACHER_NAME + ' 선생님과의 상담';
+    if (SUPABASE_URL.includes('YOUR-PROJECT') || SUPABASE_KEY.includes('YOUR-KEY')) {
+      notify('아직 Supabase 주소와 키가 들어가지 않았어요. index.html 맨 위를 바꿔 주세요.', 'err', true);
+      return;
+    }
+    db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    // 주말이면 다음 주부터 보여 주기
+    const day = new Date().getDay();
+    if (day === 0 || day === 6) weekStart = addDays(weekStart, 7);
+    loadWeek();
+  }
+
+  // ---------- 시간표 ----------
+  async function loadWeek() {
+    if (!db) return;
+    const from = ymd(weekStart);
+    const to = ymd(addDays(weekStart, 4));
+    const fri = addDays(weekStart, 4);
+    $('weekLabel').textContent = `${weekStart.getMonth() + 1}/${weekStart.getDate()}(월) ~ ${fri.getMonth() + 1}/${fri.getDate()}(금)`;
+
+    const [taken, blocked] = await Promise.all([
+      db.rpc('get_taken_slots', { start_date: from, end_date: to }),
+      db.from('blocked_slots').select('blocked_date, slot').gte('blocked_date', from).lte('blocked_date', to),
+    ]);
+    if (taken.error) { notify('시간표를 불러오지 못했어요. URL·키와 SQL 실행 여부를 확인해 주세요. (' + taken.error.message + ')', 'err', true); return; }
+    if (blocked.error) { notify('시간표를 불러오지 못했어요. (' + blocked.error.message + ')', 'err', true); return; }
+
+    const takenSet = new Set(taken.data.map(r => r.counsel_date + '_' + r.slot));
+    const blockedSet = new Set(blocked.data.map(r => r.blocked_date + '_' + (r.slot ?? 'all')));
+
+    const table = $('schedule');
+    table.innerHTML = '';
+    const today = ymd(new Date());
+
+    const head = document.createElement('tr');
+    const corner = document.createElement('th');
+    corner.className = 'time';
+    corner.textContent = '시간';
+    head.appendChild(corner);
+    for (let i = 0; i < 5; i++) {
+      const d = addDays(weekStart, i);
+      const th = document.createElement('th');
+      th.textContent = `${DAYS[d.getDay()]} ${d.getMonth() + 1}/${d.getDate()}`;
+      if (ymd(d) === today) th.className = 'today';
+      head.appendChild(th);
+    }
+    table.appendChild(head);
+
+    SLOTS.forEach(s => {
+      const tr = document.createElement('tr');
+      const th = document.createElement('th');
+      th.className = 'time';
+      th.textContent = `${s.start}~${s.end}`;
+      tr.appendChild(th);
+
+      for (let i = 0; i < 5; i++) {
+        const dateStr = ymd(addDays(weekStart, i));
+        const td = document.createElement('td');
+        const cell = document.createElement('button');
+        cell.type = 'button';
+        cell.className = 'cell';
+
+        if (isPast(dateStr, s.n)) {
+          cell.classList.add('blocked'); cell.textContent = '—'; cell.disabled = true;
+        } else if (takenSet.has(dateStr + '_' + s.n)) {
+          cell.classList.add('taken'); cell.textContent = '예약 완료'; cell.disabled = true;
+        } else if (blockedSet.has(dateStr + '_all') || blockedSet.has(dateStr + '_' + s.n)) {
+          cell.classList.add('blocked'); cell.textContent = '불가'; cell.disabled = true;
+        } else {
+          cell.classList.add('open');
+          cell.textContent = '신청 가능';
+          if (chosen && chosen.date === dateStr && chosen.slot === s.n) cell.classList.add('selected');
+          cell.onclick = () => choose(dateStr, s.n);
+        }
+        td.appendChild(cell);
+        tr.appendChild(td);
+      }
+      table.appendChild(tr);
+    });
+
+    // 고른 칸이 그 사이 마감됐으면 선택 해제
+    if (chosen && chosen.date >= from && chosen.date <= to) {
+      const key = chosen.date + '_' + chosen.slot;
+      if (takenSet.has(key) || blockedSet.has(key) || blockedSet.has(chosen.date + '_all')) {
+        chosen = null;
+        $('formCard').classList.add('hidden');
+      }
+    }
+  }
+
+  function choose(dateStr, slot) {
+    chosen = { date: dateStr, slot };
+    $('chosenText').textContent = `선택한 시간: ${niceDate(dateStr)} ${slotText(slot)}`;
+    $('formCard').classList.remove('hidden');
+    $('doneCard').classList.add('hidden');
+    loadWeek();
+    $('formCard').scrollIntoView({ behavior: 'smooth' });
+    setTimeout(() => $('fName').focus(), 400);
+  }
+
+  $('rechoose').onclick = () => {
+    chosen = null;
+    $('formCard').classList.add('hidden');
+    loadWeek();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // ---------- 신청 ----------
+  $('form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!db || !chosen) { notify('먼저 상담 시간을 골라 주세요.', 'err'); return; }
+
+    const student = $('fStudent').value.trim();
+    const name = $('fName').value.trim();
+    const phone = formatPhone($('fPhone').value);
+    if (student.length < 2) { notify('학생 이름을 2글자 이상 적어 주세요.', 'err'); return; }
+    if (name.length < 2) { notify('학부모 이름을 2글자 이상 적어 주세요.', 'err'); return; }
+    if (!/^01[016789]-\d{3,4}-\d{4}$/.test(phone)) { notify('휴대폰 번호를 010-1234-5678 형식으로 적어 주세요.', 'err'); return; }
+    if (!$('fAgree').checked) { notify('개인정보 수집·이용에 동의해 주세요.', 'err'); return; }
+    if (isPast(chosen.date, chosen.slot)) { notify('이미 지난 시간이에요. 다른 시간을 골라 주세요.', 'err'); loadWeek(); return; }
+
+    $('submitBtn').disabled = true;
+    // 저장만 하고 결과(개인정보)는 돌려받지 않아요
+    const { error } = await db.from('consultations').insert({
+      counsel_date: chosen.date,
+      slot: chosen.slot,
+      student_name: student,
+      parent_name: name,
+      phone: phone,
+      agreed: true,
+    });
+    $('submitBtn').disabled = false;
+
+    if (error) {
+      notify(friendlyError(error), 'err');
+      await loadWeek();
+      return;
+    }
+
+    $('doneText').textContent = `${niceDate(chosen.date)} ${slotText(chosen.slot)}`;
+    $('form').reset();
+    chosen = null;
+    $('formCard').classList.add('hidden');
+    $('doneCard').classList.remove('hidden');
+    $('doneCard').scrollIntoView({ behavior: 'smooth' });
+    loadWeek();
+  });
+
+  $('again').onclick = () => { $('doneCard').classList.add('hidden'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+
+  // ---------- 주 이동 ----------
+  $('prevWeek').onclick = () => { weekStart = addDays(weekStart, -7); loadWeek(); };
+  $('nextWeek').onclick = () => { weekStart = addDays(weekStart, 7); loadWeek(); };
+  $('thisWeek').onclick = () => { weekStart = mondayOf(new Date()); loadWeek(); };
+
+  init();
+</script>
+</body>
+</html>
